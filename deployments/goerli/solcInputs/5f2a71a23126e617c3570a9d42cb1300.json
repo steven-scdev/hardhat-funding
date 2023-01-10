@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(uint80 _roundId)\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n\n  function latestRoundData()\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "// SPDX-License-Identifier: SEE LICENSE IN LICENSE\npragma solidity ^0.8.7;\n\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\nimport \"./PriceConverter.sol\";\n\n// @title Found my wallet\ncontract FundMe {\n    using PriceCoverter for uint256;\n    uint256 public constant MINIMUM_USD = 50 * 1e18;\n    AggregatorV3Interface internal s_priceFeed;\n    address[] public funders;\n    mapping(address => uint256) public addressToAmountFunded;\n    address public owner;\n\n    constructor(address chainLinkPriceFeed) {\n        owner = msg.sender;\n        s_priceFeed = AggregatorV3Interface(chainLinkPriceFeed);\n    }\n\n    function fund() public payable {\n        require(\n            msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD,\n            \"Didn't send enough!\"\n        );\n        funders.push(msg.sender);\n        addressToAmountFunded[msg.sender] += msg.value;\n    }\n\n    function withdraw() public {\n        for (uint256 holder = 0; holder < funders.length; holder++) {\n            addressToAmountFunded[funders[holder]] = 0;\n        }\n        funders = new address[](0);\n\n        (bool success, ) = payable(msg.sender).call{\n            value: address(this).balance\n        }(\"\");\n        require(success, \"Transfer failed.\");\n    }\n\n    // Run before everything else\n    modifier onlyOwner() {\n        require(msg.sender == owner, \"Sender is not owner\");\n        _; // Run rest of the code\n    }\n}\n"
+    },
+    "contracts/PriceConverter.sol": {
+      "content": "// SPDX-License-Identifier: SEE LICENSE IN LICENSE\npragma solidity ^0.8.7;\n\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\n\nlibrary PriceCoverter {\n    function getLatestPrice(AggregatorV3Interface priceFeed)\n        internal\n        view\n        returns (uint256)\n    {\n        (\n            ,\n            /*uint80 roundID*/\n            int price, /*uint startedAt*/ /*uint timeStamp*/ /*uint80 answeredInRound*/\n            ,\n            ,\n\n        ) = priceFeed.latestRoundData();\n        return uint256(price * 10000000000);\n    }\n\n    function getConversionRate(\n        uint256 ethAmount,\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        uint256 ethPrice = getLatestPrice(priceFeed);\n        uint256 ethAmountInUsd = (ethAmount * ethPrice) / 1e18;\n        return ethAmountInUsd;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
